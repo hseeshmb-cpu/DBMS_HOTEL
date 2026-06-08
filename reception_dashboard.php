@@ -19,8 +19,46 @@ $userData = $resUser->fetch_assoc();
 $receptionist_id = $userData['User_ID'];
 
 if(isset($_GET['confirm'])){
+
     $booking_id = intval($_GET['confirm']);
-    $conn->query("UPDATE bookings SET booking_status='Confirmed', processed_by=$receptionist_id WHERE booking_id=$booking_id");
+
+    $booking = $conn->query("
+        SELECT * FROM bookings WHERE booking_id=$booking_id
+    ")->fetch_assoc();
+
+    $user_id = $booking['user_id'];
+
+    $user = $conn->query("
+        SELECT * FROM users WHERE User_ID=$user_id
+    ")->fetch_assoc();
+
+
+    $conn->query("
+        UPDATE bookings 
+        SET booking_status='Confirmed'
+        WHERE booking_id=$booking_id
+    ");
+
+    $check = $conn->query("
+        SELECT * FROM guest WHERE User_ID=$user_id
+    ");
+
+    if($check->num_rows == 0){
+        $conn->query("
+            INSERT INTO guest
+            (User_ID, first_name, last_name, phone_number, birthdate, email)
+            VALUES
+            (
+                {$user['User_ID']},
+                '{$user['first_name']}',
+                '{$user['last_name']}',
+                '{$user['phone_number']}',
+                '{$user['birthdate']}',
+                '{$user['email']}'
+            )
+        ");
+    }
+
     header("Location: reception_dashboard.php");
     exit();
 }

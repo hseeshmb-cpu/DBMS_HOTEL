@@ -44,7 +44,7 @@ include "db.php";
 		font-size:14px;
 	}
 	
-		#room_price{
+	#room_price{
 		background:#1a1a1a;
 		color:#00ff99;
 		font-weight:bold;
@@ -57,14 +57,14 @@ include "db.php";
 		margin-bottom:20px;
 	}
 
-	button{
-		padding:8px 10px;
-		background:#2d89ef;
-		color:white;
-		border:none;
-		border-radius:5px;
-		cursor:pointer;
-	}
+button{
+    padding:8px 12px;
+    background:#2d89ef;
+    color:white;
+    border:none;
+    border-radius:5px;
+	
+}
 	
 	.section-header{
 		background:#1e1e1e;
@@ -119,6 +119,7 @@ include "db.php";
         <option>Bank Transfer</option>
         <option>Credit Card</option>
         <option>GCash</option>
+		<option>Cash</option>
     </select>
 
     <label>Amount Paid</label>
