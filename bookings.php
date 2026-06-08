@@ -57,14 +57,14 @@ include "db.php";
 		margin-bottom:20px;
 	}
 
-button{
-    padding:8px 12px;
-    background:#2d89ef;
-    color:white;
-    border:none;
-    border-radius:5px;
-	
-}
+	button{
+		padding:8px 10px;
+		background:#2d89ef;
+		color:white;
+		border:none;
+		border-radius:5px;
+		cursor:pointer;
+	}
 	
 	.section-header{
 		background:#1e1e1e;
