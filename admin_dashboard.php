@@ -333,23 +333,25 @@ while($row=$res->fetch_assoc()){
 if(isset($_GET['approve'])){
     $id = $_GET['approve'];
     $conn->query("UPDATE void_booking SET status='Approved' WHERE Void_ID=$id");
-	$booking = $conn->query("
-    SELECT room_id
-    FROM bookings
-    WHERE booking_id = (
-        SELECT booking_id
-        FROM void_booking
-        WHERE Void_ID=$id
-    )
-")->fetch_assoc();
 
-$room_id = $booking['room_id'];
+    $booking = $conn->query("
+        SELECT room_id, booking_id
+        FROM bookings
+        WHERE booking_id = (
+            SELECT booking_id
+            FROM void_booking
+            WHERE Void_ID=$id
+        )
+    ")->fetch_assoc();
 
-$conn->query("
-    UPDATE rooms
-    SET available = available + 1
-    WHERE room_id=$room_id
-");
+    $room_id = $booking['room_id'];
+    $booking_id = $booking['booking_id'];
+
+    // THIS IS THE ADDED LINE - updates booking status to Cancelled
+    $conn->query("UPDATE bookings SET booking_status='Cancelled' WHERE booking_id=$booking_id");
+
+    $conn->query("UPDATE rooms SET available = available + 1 WHERE room_id=$room_id");
+
     echo "<script>window.location='admin_dashboard.php';</script>";
 }
 
