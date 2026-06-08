@@ -44,12 +44,13 @@ textarea{
 }
 
 button{
-    padding:8px 12px;
+    width:100%;
+    padding:10px;
     background:#2d89ef;
-    color:white;
     border:none;
+    color:white;
+    cursor:pointer;
     border-radius:5px;
-	
 }
 
 table{
