@@ -99,8 +99,26 @@ button{
 <form method="POST">
 
     <label>Room ID</label>
-    <input type="number" name="room_id" id="room_id" required
-        oninput="getPrice()"
+
+	<select name="room_id" id="room_id" required onchange="getPrice()">
+
+    <option value="" disabled selected>Select Room</option>
+
+    <?php
+    $rooms = $conn->query("
+        SELECT room_id, room_type, available
+        FROM rooms
+        WHERE available > 0
+    ");
+
+    while($room = $rooms->fetch_assoc()){
+        echo "
+        <<option value='{$room['room_id']}'>
+		Room {$room['room_id']} - {$room['room_type']}
+		({$room['available']} Available)
+		</option>";
+    }
+    ?>
 
     <label>Room Price</label>
     <input type="text" id="room_price" readonly
@@ -180,11 +198,6 @@ if(isset($_POST['book'])){
         )
     ");
 	
-		$conn->query("
-		UPDATE rooms
-		SET available = available - 1
-		WHERE room_id='$room'
-	");
 
     echo "<script>alert('Booking successful!'); window.location='bookings.php';</script>";
 }

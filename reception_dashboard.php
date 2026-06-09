@@ -18,6 +18,34 @@ $resUser = $conn->query("
 $userData = $resUser->fetch_assoc();
 $receptionist_id = $userData['User_ID'];
 
+if(isset($_GET['pay'])){
+
+    $id = intval($_GET['pay']);
+
+    $conn->query("
+        UPDATE bookings
+        SET payment_status='Paid'
+        WHERE booking_id=$id
+    ");
+
+    header("Location: reception_dashboard.php");
+    exit();
+}
+
+if(isset($_GET['unpay'])){
+
+    $id = intval($_GET['unpay']);
+
+    $conn->query("
+        UPDATE bookings
+        SET payment_status='Unpaid'
+        WHERE booking_id=$id
+    ");
+
+    header("Location: reception_dashboard.php");
+    exit();
+}
+
 if(isset($_GET['confirm'])){
 
     $booking_id = intval($_GET['confirm']);
@@ -33,11 +61,18 @@ if(isset($_GET['confirm'])){
     ")->fetch_assoc();
 
 
-    $conn->query("
-        UPDATE bookings 
+     $conn->query("
+        UPDATE bookings
         SET booking_status='Confirmed'
         WHERE booking_id=$booking_id
     ");
+
+	$conn->query("
+		UPDATE rooms
+		SET available = available - 1
+		WHERE room_id='{$booking['room_id']}'
+		AND available > 0
+	");
 
     $check = $conn->query("
         SELECT * FROM guest WHERE User_ID=$user_id
@@ -236,33 +271,6 @@ button:hover {
     </table>
 </div>
 
-<!-- Void Requests -->
-<div class="box">
-    <h3>Void Requests</h3>
-    <table>
-        <tr>
-            <th>ID</th>
-            <th>Booking</th>
-            <th>Guest</th>
-            <th>Reason</th>
-            <th>Status</th>
-        </tr>
-        <?php
-        $res = $conn->query("SELECT * FROM void_booking");
-        while($row = $res->fetch_assoc()){
-            echo "<tr>
-                <td>{$row['Void_ID']}</td>
-                <td>{$row['booking_id']}</td>
-                <td>{$row['guest_name']}</td>
-                <td>{$row['reason']}</td>
-                <td>{$row['status']}</td>
-            </tr>";
-        }
-        ?>
-    </table>
-</div>
-
-<!-- Payment Records -->
 <div class="box">
     <h3>Payment Records</h3>
     <table>

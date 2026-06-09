@@ -110,7 +110,7 @@ th{
 <form method="POST">
 
 <select name="room_type" required>
-    <option value="">Select Room Type</option>
+    <option value="" disabled selected hidden>Select Room Type</option>
     <option>Standard Single</option>
     <option>Standard Double</option>
     <option>Deluxe Room</option>
@@ -131,7 +131,7 @@ if(isset($_POST['add_room'])){
     $cap = $_POST['capacity'];
 
     $conn->query("INSERT INTO rooms(room_type,price,capacity,available)
-    VALUES('$type','$price','$cap',1)");
+    VALUES('$type','$price','$cap','$cap')");
 
     echo "<script>alert('Room Added');window.location='admin_dashboard.php';</script>";
 }
@@ -143,13 +143,18 @@ if(isset($_POST['add_room'])){
 <h3>Reports</h3>
 
 <?php
-$totalRooms = $conn->query("SELECT COUNT(*) as c FROM rooms")->fetch_assoc()['c'];
+$totalRooms = $conn->query("SELECT SUM(total_rooms) as total FROM rooms")->fetch_assoc()['total'];
+$availableRooms = $conn->query("SELECT SUM(available) as total FROM rooms")->fetch_assoc()['total'];
 $totalBookings = $conn->query("SELECT COUNT(*) as c FROM bookings")->fetch_assoc()['c'];
 $pendingBookings = $conn->query("SELECT COUNT(*) as c FROM bookings WHERE booking_status='Pending'")->fetch_assoc()['c'];
 ?>
 
 <p>Total Rooms: <b><?= $totalRooms ?></b></p>
+
+<p>Available Rooms: <b><?= $availableRooms ?></b></p>
+
 <p>Total Bookings: <b><?= $totalBookings ?></b></p>
+
 <p>Pending Bookings: <b><?= $pendingBookings ?></b></p>
 
 </div>
@@ -331,28 +336,64 @@ while($row=$res->fetch_assoc()){
 
 <?php
 if(isset($_GET['approve'])){
-    $id = $_GET['approve'];
-    $conn->query("UPDATE void_booking SET status='Approved' WHERE Void_ID=$id");
 
-    $booking = $conn->query("
-        SELECT room_id, booking_id
-        FROM bookings
-        WHERE booking_id = (
-            SELECT booking_id
-            FROM void_booking
-            WHERE Void_ID=$id
-        )
+    $id = intval($_GET['approve']);
+
+    $void = $conn->query("
+        SELECT booking_id
+        FROM void_booking
+        WHERE Void_ID=$id
     ")->fetch_assoc();
 
-    $room_id = $booking['room_id'];
-    $booking_id = $booking['booking_id'];
+    if(!$void){
+        die("Void request not found.");
+    }
 
-    // THIS IS THE ADDED LINE - updates booking status to Cancelled
-    $conn->query("UPDATE bookings SET booking_status='Cancelled' WHERE booking_id=$booking_id");
+    $booking_id = $void['booking_id'];
 
-    $conn->query("UPDATE rooms SET available = available + 1 WHERE room_id=$room_id");
+    $booking = $conn->query("
+        SELECT room_id
+        FROM bookings
+        WHERE booking_id=$booking_id
+    ")->fetch_assoc();
 
-    echo "<script>window.location='admin_dashboard.php';</script>";
+    if($booking){
+
+    $conn->query("
+        UPDATE bookings
+        SET booking_status='Cancelled'
+        WHERE booking_id=$booking_id
+	");
+	
+	$check = $conn->query("
+		SELECT status 
+		FROM void_booking 
+		WHERE Void_ID=$id
+	")->fetch_assoc();
+
+if($check['status'] == 'Approved'){
+    header("Location: admin_dashboard.php");
+    exit();
+}
+
+    $conn->query("
+		UPDATE rooms
+		SET available = LEAST(available + 1, 5)
+		WHERE room_id = {$booking['room_id']}
+    ");
+    }
+
+    $conn->query("
+        UPDATE void_booking
+        SET status='Approved'
+        WHERE Void_ID=$id
+    ");
+
+    echo "<script>
+        alert('Void request approved.');
+        window.location='admin_dashboard.php';
+    </script>";
+    exit();
 }
 
 if(isset($_GET['reject'])){
@@ -371,7 +412,9 @@ if(isset($_GET['reject'])){
 <form method="POST">
 <input type="text" name="first_name" placeholder="First Name" required>
 <input type="text" name="last_name" placeholder="Last Name" required>
+<input type="date" name="birthdate" required>
 <input type="email" name="email" placeholder="Email" required>
+<input type="text" name="phone_number" placeholder="Phone Number" required>
 <input type="text" name="username" placeholder="Username" required>
 <input type="password" name="password" placeholder="Password" required>
 
@@ -380,18 +423,43 @@ if(isset($_GET['reject'])){
 
 <?php
 if(isset($_POST['add_staff'])){
+
     $fname = $_POST['first_name'];
     $lname = $_POST['last_name'];
     $email = $_POST['email'];
+    $phone = $_POST['phone_number'];
+    $birthdate = $_POST['birthdate'];
     $username = $_POST['username'];
     $password = $_POST['password'];
 
-    $conn->query("INSERT INTO users(first_name,last_name,email,username,password,role)
-    VALUES('$fname','$lname','$email','$username','$password','receptionist')");
+    $conn->query("
+        INSERT INTO users
+        (
+            first_name,
+            last_name,
+            email,
+            phone_number,
+            birthdate,
+            username,
+            password,
+            role
+        )
+        VALUES
+        (
+            '$fname',
+            '$lname',
+            '$email',
+            '$phone',
+            '$birthdate',
+            '$username',
+            '$password',
+            'receptionist'
+        )
+    ");
 
     echo "<script>
-    alert('Reception staff added');
-    window.location='admin_dashboard.php';
+        alert('Reception staff added');
+        window.location='admin_dashboard.php';
     </script>";
 }
 ?>
