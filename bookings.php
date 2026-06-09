@@ -127,10 +127,10 @@ button{
     <input type="number" name="num_guests" min="1" required>
 
     <label>Check In</label>
-    <input type="date" name="in" required>
+	<input type="date" name="in" id="checkin" required onchange="limitCheckout()">
 
-    <label>Check Out</label>
-    <input type="date" name="out" required>
+	<label>Check Out</label>
+	<input type="date" name="out" id="checkout" required>
 
     <label>Payment Method</label>
     <select name="payment_method" required>
@@ -154,6 +154,18 @@ if(isset($_POST['book'])){
     $room = $_POST['room_id'];
     $in = $_POST['in'];
     $out = $_POST['out'];
+	$start = new DateTime($in);
+	$end = new DateTime($out);
+
+	$diff = $start->diff($end)->days;
+
+	if($diff < 1 || $diff > 7){
+		echo "<script>
+			alert('You can only book between 1 to 7 days.');
+			window.location='bookings.php';
+		</script>";
+    exit();
+}
     $num_guests = $_POST['num_guests'];
     $payment_method = $_POST['payment_method'];
     $amount_paid = $_POST['amount_paid'];
@@ -183,7 +195,7 @@ if(isset($_POST['book'])){
 
     $conn->query("
         INSERT INTO bookings
-        (user_id, room_id, check_in_date, check_out_date, num_guests, total_price, booking_status, payment_method, amount_paid)
+        (user_id, room_id, check_in_date, check_out_date, num_guests, total_price, booking_status)
         VALUES
         (
             (SELECT User_ID FROM users WHERE username='$user'),
@@ -192,12 +204,19 @@ if(isset($_POST['book'])){
             '$out',
             '$num_guests',
             '$price',
-            'Pending',
-            '$payment_method',
-            '$amount_paid'
-        )
+            'Pending'
+
+        )	
+		
     ");
-	
+	$booking_id = $conn->insert_id;
+
+	$conn->query("
+		INSERT INTO payment
+		(Booking_ID, payment_method, amount_paid, payment_status, transaction_date)
+		VALUES
+		($booking_id, '$payment_method', '$amount_paid', 'Unpaid', NOW())
+	");
 
     echo "<script>alert('Booking successful!'); window.location='bookings.php';</script>";
 }
@@ -220,6 +239,28 @@ function getPrice(){
     .then(data => {
         document.getElementById("room_price").value = data;
     });
+}
+</script>
+
+<script>
+function limitCheckout(){
+
+    let checkin = document.getElementById("checkin").value;
+
+    if(!checkin) return;
+
+    let start = new Date(checkin);
+
+    let min = new Date(start);
+    min.setDate(min.getDate() + 1);
+
+    let max = new Date(start);
+    max.setDate(max.getDate() + 7);
+
+    let checkout = document.getElementById("checkout");
+
+    checkout.min = min.toISOString().split('T')[0];
+    checkout.max = max.toISOString().split('T')[0];
 }
 </script>
 

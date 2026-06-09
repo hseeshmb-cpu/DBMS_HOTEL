@@ -22,11 +22,14 @@ body{
     padding:20px;
 }
 
-.header{
-    background:#1e1e1e;
-    padding:15px;
-    border-radius:10px;
-    margin-bottom:20px;
+.header {
+    background: #1e1e1e;
+    padding: 15px 20px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .container{
@@ -320,16 +323,30 @@ $res = $conn->query("SELECT * FROM void_booking");
 
 while($row=$res->fetch_assoc()){
     echo "<tr>
-        <td>{$row['Void_ID']}</td>
-        <td>{$row['booking_id']}</td>
-        <td>{$row['guest_name']}</td>
-        <td>{$row['reason']}</td>
-        <td>{$row['status']}</td>
-        <td>
-            <a href='admin_dashboard.php?approve={$row['Void_ID']}'><button>Approve</button></a>
-            <a href='admin_dashboard.php?reject={$row['Void_ID']}'><button>Reject</button></a>
-        </td>
-    </tr>";
+    <td>{$row['Void_ID']}</td>
+    <td>{$row['booking_id']}</td>
+    <td>{$row['guest_name']}</td>
+    <td>{$row['reason']}</td>
+    <td>{$row['status']}</td>
+    <td>";
+
+if($row['status'] == 'Pending'){
+
+    echo "
+    <a href='admin_dashboard.php?approve={$row['Void_ID']}'><button>Approve</button></a>
+
+    <a href='admin_dashboard.php?reject={$row['Void_ID']}'><button>Reject</button></a>
+    ";
+}
+
+echo "
+    <a href='admin_dashboard.php?remove={$row['Void_ID']}'
+       onclick='return confirm(\"WARNING: This will permanently remove the void request. Are you sure you want to Continue?\")'>
+       <button>Remove</button>
+    </a>
+
+    </td>
+</tr>";
 }
 ?>
 </table>
@@ -401,6 +418,24 @@ if(isset($_GET['reject'])){
     $conn->query("UPDATE void_booking SET status='Rejected' WHERE Void_ID=$id");
     echo "<script>window.location='admin_dashboard.php';</script>";
 }
+
+if(isset($_GET['remove'])){
+
+    $id = (int)$_GET['remove'];
+
+    $conn->query("
+        DELETE FROM void_booking
+        WHERE Void_ID=$id
+    ");
+
+    echo "
+    <script>
+        alert('Void request removed successfully.');
+        window.location='admin_dashboard.php';
+    </script>
+    ";
+    exit();
+}
 ?>
 
 </div>
@@ -453,9 +488,15 @@ if(isset($_POST['add_staff'])){
             '$birthdate',
             '$username',
             '$password',
-            'receptionist'
+            'receptionist'z
         )
     ");
+		$conn->query("
+		INSERT INTO reception_staff
+		(User_ID, first_name, last_name, phone_number, birthdate, username)
+		VALUES
+		(LAST_INSERT_ID(),'$fname','$lname','$phone','$birthdate','$username')
+	");
 
     echo "<script>
         alert('Reception staff added');

@@ -14,6 +14,7 @@ session_start();
             margin: 40px;
             background:#121212;
             color:white;
+			
         }
 
         .box{
@@ -25,7 +26,7 @@ session_start();
         }
 
         input, select{
-            width:100%;
+            width:95%;
             padding:8px;
             margin:5px 0;
             background:#2a2a2a;
@@ -65,7 +66,7 @@ session_start();
             height:80vh;
         }
 
-        h2{
+        h1, h2{
             text-align:center;
         }
     </style>
@@ -76,6 +77,8 @@ session_start();
 <div class="container">
 
 <div class="box">
+
+<h1>COLOVE HOTEL</h1>
 
 <h2>Login</h2>
 
@@ -122,7 +125,6 @@ if(isset($_POST['login'])){
 
     $result = $conn->query($sql);
 
-    // ✅ FIXED: properly closed block
     if($result && $result->num_rows > 0){
 
         $user = $result->fetch_assoc();

@@ -23,12 +23,15 @@ if(isset($_GET['pay'])){
     $id = intval($_GET['pay']);
 
     $conn->query("
-        UPDATE bookings
+        UPDATE payment
         SET payment_status='Paid'
-        WHERE booking_id=$id
+        WHERE Booking_ID=$id
     ");
 
-    header("Location: reception_dashboard.php");
+    echo "<script>
+        alert('Successfully Paid');
+        window.location='reception_dashboard.php';
+    </script>";
     exit();
 }
 
@@ -53,6 +56,14 @@ if(isset($_GET['confirm'])){
     $booking = $conn->query("
         SELECT * FROM bookings WHERE booking_id=$booking_id
     ")->fetch_assoc();
+	
+		if($booking['booking_status'] == 'Confirmed'){
+		echo "<script>
+			alert('Booking already confirmed.');
+			window.location='reception_dashboard.php';
+		</script>";
+		exit();
+	}
 
     $user_id = $booking['user_id'];
 
@@ -208,7 +219,6 @@ button:hover {
     <a href="logout.php"><button>Logout</button></a>
 </div>
 
-<!-- Booking Management -->
 <div class="box">
     <h3>Bookings Management</h3>
     <table>
@@ -218,32 +228,102 @@ button:hover {
             <th>User</th>
             <th>Status</th>
             <th>Payment</th>
+			<th>Payment Status</th>
             <th>Actions</th>
         </tr>
-        <?php
-        $res = $conn->query("SELECT * FROM bookings");
-        while($row = $res->fetch_assoc()){
-            echo "<tr>
-                <td>{$row['booking_id']}</td>
-                <td>{$row['room_id']}</td>
-                <td>{$row['user_id']}</td>
-                <td>{$row['booking_status']}</td>
-                <td>{$row['amount_paid']}</td>
-                <td>
-                    <div class='action-btn'>
-                        <a href='reception_dashboard.php?confirm={$row['booking_id']}'><button>Confirm</button></a>
-                        <a href='reception_dashboard.php?checkin={$row['booking_id']}'><button>Check-in</button></a>
-                        <a href='reception_dashboard.php?checkout={$row['booking_id']}'><button>Check-out</button></a>
-                        <a href='reception_dashboard.php?pay={$row['booking_id']}'><button>Pay</button></a>
-                    </div>
-                </td>
-            </tr>";
-        }
-        ?>
+		<?php
+		$res = $conn->query("
+			SELECT b.*, p.amount_paid, p.payment_status
+			FROM bookings b
+			LEFT JOIN payment p
+			ON b.booking_id = p.Booking_ID
+		");
+		while($row = $res->fetch_assoc()){
+
+			$status = strtolower(trim($row['booking_status']));
+			$confirmed = ($status == 'confirmed');
+			$cancelled = ($status == 'cancelled');
+		?>
+		<tr>
+			<td><?= $row['booking_id'] ?></td>
+			<td><?= $row['room_id'] ?></td>
+			<td><?= $row['user_id'] ?></td>
+			<td><?= $row['booking_status'] ?></td>
+			<td><?= $row['amount_paid'] ?? 0 ?></td>
+			<td><?= $row['payment_status'] ?? 'Unpaid' ?></td>
+
+			<td>
+				<div class="action-btn">
+
+				<?php
+					$lockConfirm = $confirmed || $cancelled;
+					?>
+
+					<a href="reception_dashboard.php?confirm=<?= $row['booking_id'] ?>"
+					   onclick="<?= $lockConfirm ? 'return false;' : '' ?>">
+						<button
+							<?= $lockConfirm ? 'disabled' : '' ?>
+							style="
+								background: <?= $lockConfirm ? '#555' : '#2d89ef' ?>;
+								cursor: <?= $lockConfirm ? 'not-allowed' : 'pointer' ?>;
+								opacity: <?= $lockConfirm ? '0.5' : '1' ?>;
+							"
+						>
+							<?= $confirmed ? 'Confirmed' : 'Confirm' ?>
+						</button>
+					</a>
+					
+					<a href="reception_dashboard.php?checkin=<?= $row['booking_id'] ?>"
+					   onclick="<?= $cancelled ? 'return false;' : '' ?>">
+						<button
+							<?= $cancelled ? 'disabled' : '' ?>
+							style="
+								background: <?= $cancelled ? '#555' : '#2d89ef' ?>;
+								opacity: <?= $cancelled ? '0.6' : '1' ?>;
+							"
+						>
+							Check-in
+						</button>
+					</a>
+
+					<a href="reception_dashboard.php?checkout=<?= $row['booking_id'] ?>"
+					   onclick="<?= $cancelled ? 'return false;' : '' ?>">
+						<button
+							<?= $cancelled ? 'disabled' : '' ?>
+							style="
+								background: <?= $cancelled ? '#555' : '#2d89ef' ?>;
+								opacity: <?= $cancelled ? '0.6' : '1' ?>;
+							"
+						>
+							Check-out
+						</button>
+					</a>
+
+					<?php
+					$paid = isset($row['payment_status']) && $row['payment_status'] == 'Paid';
+					$disablePay = $paid || $cancelled;
+					?>
+
+					<a href="reception_dashboard.php?pay=<?= $row['booking_id'] ?>"
+					   onclick="<?= $disablePay ? 'return false;' : '' ?>">
+						<button
+							style="
+								background: <?= $disablePay ? '#555' : '#2d89ef' ?>;
+								cursor: <?= $disablePay ? 'not-allowed' : 'pointer' ?>;
+								opacity: <?= $disablePay ? '0.6' : '1' ?>;
+							"
+							<?= $disablePay ? 'disabled' : '' ?>
+						>
+							<?= $paid ? 'Paid' : 'Pay' ?>
+						</button>
+					</a>
+				</div>
+			</td>
+		</tr>
+		<?php } ?>
     </table>
 </div>
 
-<!-- Guest Records -->
 <div class="box">
     <h3>Guest Records</h3>
     <table>
@@ -253,13 +333,17 @@ button:hover {
             <th>Email</th>
         </tr>
         <?php
-        $res = $conn->query("
-            SELECT DISTINCT u.User_ID, u.first_name, u.last_name, u.email
-            FROM users u
-            INNER JOIN bookings b ON u.User_ID = b.user_id
-            WHERE u.role = 'guest'
-            AND b.booking_status = 'Confirmed'
-        ");
+		$res = $conn->query("
+			SELECT DISTINCT
+				u.User_ID,
+				u.first_name,
+				u.last_name,
+				u.email
+			FROM users u
+			INNER JOIN bookings b
+				ON u.User_ID = b.user_id
+			WHERE u.role='guest'
+		");
         while($row = $res->fetch_assoc()){
             echo "<tr>
                 <td>{$row['User_ID']}</td>
@@ -267,6 +351,7 @@ button:hover {
                 <td>{$row['email']}</td>
             </tr>";
         }
+		
         ?>
     </table>
 </div>
@@ -282,19 +367,25 @@ button:hover {
         </tr>
         <?php
         $res = $conn->query("
-            SELECT b.booking_id, b.room_id, b.booking_status, r.price
-            FROM bookings b
-            LEFT JOIN rooms r ON b.room_id = r.room_id
-        ");
+			SELECT
+				p.Booking_ID,
+				b.room_id,
+				p.amount_paid,
+				p.payment_status
+			FROM payment p
+			INNER JOIN bookings b
+				ON p.Booking_ID = b.booking_id
+		");
         while($row = $res->fetch_assoc()){
-            $amount = $row['price'] ? $row['price'] : 0;
-            echo "<tr>
-                <td>{$row['booking_id']}</td>
-                <td>{$row['room_id']}</td>
-                <td>₱{$amount}</td>
-                <td>{$row['booking_status']}</td>
-            </tr>";
-        }
+		$status = strtolower(trim($row['payment_status']));
+		$confirmed = ($row['payment_status'] == 'Confirmed');
+		echo "<tr>
+			<td>{$row['Booking_ID']}</td>
+			<td>{$row['room_id']}</td>
+			<td>₱{$row['amount_paid']}</td>
+			<td>{$row['payment_status']}</td>
+		</tr>";
+	}
         ?>
     </table>
 </div>
