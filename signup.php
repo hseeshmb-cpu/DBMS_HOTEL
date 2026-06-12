@@ -18,6 +18,11 @@ session_start();
             display:flex;
             justify-content:center;
             align-items:center;
+			background-image: url('hotel-bg.jpg');
+			background-size: cover;
+			background-position: center;
+			background-repeat: no-repeat;
+			background-attachment: fixed;
         }
 
         .box{
@@ -34,13 +39,13 @@ session_start();
         }
 
         input, select{
-            width:100%;
-            padding:10px;
-            margin:6px 0;
+            width:95%;
+            padding:8px;
+            margin:5px 0;
             background:#2a2a2a;
             color:white;
             border:1px solid #444;
-            border-radius:6px;
+            border-radius:5px;
         }
 
         button{
@@ -127,13 +132,28 @@ if(isset($_POST['signup'])){
     ('$username','$password','$first','$last','$phone','$birth','$role','$email')";
 
     if($conn->query($sql)){
-        echo "<script>
-            alert('Account created successfully!');
-            window.location='login.php';
-        </script>";
-    } else {
-        echo "Error: " . $conn->error;
-    }
+
+		$user_id = $conn->insert_id;
+
+		$conn->query("
+			INSERT INTO guest
+			(User_ID, first_name, last_name, phone_number, birthdate, email)
+			VALUES
+			(
+				$user_id,
+				'$first',
+				'$last',
+				'$phone',
+				'$birth',
+				'$email'
+			)
+		");
+
+		echo "<script>
+			alert('Account created successfully!');
+			window.location='login.php';
+		</script>";
+	}
 }
 ?>
 

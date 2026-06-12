@@ -15,6 +15,11 @@ body{
     color:white;
     margin:0;
     padding:30px;
+	background-image: url('hotel-bg.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
 }
 
 .box{
@@ -68,6 +73,13 @@ th{
     background:#222;
 }
 
+.container{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:80vh;
+}
+
 select{
     width:100%;
     padding:8px;
@@ -95,19 +107,22 @@ select{
 <body>
 
 <div class="section-header">
-    <h2>Void Requests</h2>
+    <h2>Cancelation Request</h2>
 
     <a href="index.php">
         <button>Back to Home</button>
     </a>
 </div>
 
+<div class="container">
+
 <div class="box">
+
 <form method="POST">
 
 	<label>Select Booking</label>
 
-	<select name="booking_id" required>
+	<select style="cursor:pointer" name="booking_id" required>
 	<?php
 
 	$username = $_SESSION['user'];
@@ -143,6 +158,8 @@ while($row = $res->fetch_assoc()){
 
 </div>
 
+</div>
+
 <?php
 if(isset($_POST['submit'])){
 
@@ -164,31 +181,6 @@ if(isset($_POST['submit'])){
     ";
     exit();
 	}
-}
-?>
-
-<h3>Request History</h3>
-
-<table>
-<tr>
-<th>ID</th>
-<th>Booking ID</th>
-<th>Guest</th>
-<th>Reason</th>
-<th>Status</th>
-</tr>
-
-<?php
-$res = $conn->query("SELECT * FROM void_booking ORDER BY submitted_at DESC");
-
-while($row=$res->fetch_assoc()){
-    echo "<tr>
-        <td>{$row['Void_ID']}</td>
-        <td>{$row['booking_id']}</td>
-        <td>{$row['guest_name']}</td>
-        <td>{$row['reason']}</td>
-        <td>{$row['status']}</td>
-    </tr>";
 }
 ?>
 

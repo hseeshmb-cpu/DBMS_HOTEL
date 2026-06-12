@@ -14,7 +14,11 @@ session_start();
             margin: 40px;
             background:#121212;
             color:white;
-			
+			background-image: url('hotel-bg.jpg');
+			background-size: cover;
+			background-position: center;
+			background-repeat: no-repeat;
+			background-attachment: fixed;	
         }
 
         .box{
@@ -44,6 +48,7 @@ session_start();
             cursor:pointer;
             border-radius:5px;
             font-weight:bold;
+			margin-top:15px;
         }
 
         button:hover{
@@ -68,6 +73,7 @@ session_start();
 
         h1, h2{
             text-align:center;
+
         }
     </style>
 </head>
@@ -78,7 +84,7 @@ session_start();
 
 <div class="box">
 
-<h1>COLOVE HOTEL</h1>
+<h1 style="font-family:Georgia, serif">COLOVE HOTEL</h1>
 
 <h2>Login</h2>
 
@@ -91,7 +97,7 @@ session_start();
     <input type="password" name="password" required>
 
     Role:
-    <select name="role">
+    <select style="width:100%" name="role">
         <option value="guest">Guest</option>
         <option value="admin">Admin</option>
         <option value="receptionist">Receptionist</option>

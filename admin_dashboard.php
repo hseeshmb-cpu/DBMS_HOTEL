@@ -6,6 +6,42 @@ if(!isset($_SESSION['user']) || $_SESSION['role'] != 'admin'){
     header("Location: login.php");
     exit();
 }
+
+$editRoom = null;
+
+if(isset($_GET['edit'])){
+    $id = intval($_GET['edit']);
+    $editRoom = $conn->query("SELECT * FROM rooms WHERE room_id=$id")->fetch_assoc();
+}
+
+if(isset($_GET['maintenance'])){
+
+    $id = intval($_GET['maintenance']);
+
+    $conn->query("
+        UPDATE rooms
+        SET room_status='Under Maintenance'
+        WHERE room_id=$id AND room_status!='Occupied'
+    ");
+
+    header("Location: admin_dashboard.php");
+    exit();
+}
+
+if(isset($_GET['cancel_maintenance'])){
+
+    $id = intval($_GET['cancel_maintenance']);
+
+    $conn->query("
+        UPDATE rooms
+        SET room_status='Available'
+        WHERE room_id=$id AND room_status='Under Maintenance'
+    ");
+
+    header("Location: admin_dashboard.php");
+    exit();
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -20,8 +56,12 @@ body{
     color:white;
     margin:0;
     padding:20px;
+	background-image: url('hotel-bg.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
 }
-
 .header {
     background: #1e1e1e;
     padding: 15px 20px;
@@ -73,6 +113,7 @@ button{
     color:white;
     border:none;
     border-radius:5px;
+	cursor:pointer;
 }
 
 table{
@@ -108,202 +149,117 @@ th{
 
 
 <div class="box">
-<h3>Add Room</h3>
-
-<form method="POST">
-
-<select name="room_type" required>
-    <option value="" disabled selected hidden>Select Room Type</option>
-    <option>Standard Single</option>
-    <option>Standard Double</option>
-    <option>Deluxe Room</option>
-    <option>Family Room</option>
-    <option>Suite</option>
-</select>
-
-<input type="number" name="price" placeholder="Price" required>
-<input type="number" name="capacity" placeholder="Capacity" required>
-
-<button name="add_room">Add Room</button>
-</form>
-
-<?php
-if(isset($_POST['add_room'])){
-    $type = $_POST['room_type'];
-    $price = $_POST['price'];
-    $cap = $_POST['capacity'];
-
-    $conn->query("INSERT INTO rooms(room_type,price,capacity,available)
-    VALUES('$type','$price','$cap','$cap')");
-
-    echo "<script>alert('Room Added');window.location='admin_dashboard.php';</script>";
-}
-?>
-</div>
-
-
-<div class="box">
 <h3>Reports</h3>
 
 <?php
-$totalRooms = $conn->query("SELECT SUM(total_rooms) as total FROM rooms")->fetch_assoc()['total'];
-$availableRooms = $conn->query("SELECT SUM(available) as total FROM rooms")->fetch_assoc()['total'];
-$totalBookings = $conn->query("SELECT COUNT(*) as c FROM bookings")->fetch_assoc()['c'];
-$pendingBookings = $conn->query("SELECT COUNT(*) as c FROM bookings WHERE booking_status='Pending'")->fetch_assoc()['c'];
+$totalConfirmed = $conn->query("
+    SELECT COUNT(*) as total 
+    FROM bookings 
+    WHERE booking_status='Confirmed'
+")->fetch_assoc()['total'];
+
+$totalCancelled = $conn->query("
+    SELECT COUNT(*) as total 
+    FROM bookings 
+    WHERE booking_status='Cancelled'
+")->fetch_assoc()['total'];
+
+$totalPending = $conn->query("
+    SELECT COUNT(*) as total 
+    FROM bookings 
+    WHERE booking_status='Pending'
+")->fetch_assoc()['total'];
+
+$totalBookings = $conn->query("
+    SELECT COUNT(*) as total 
+    FROM bookings
+")->fetch_assoc()['total'];
 ?>
 
-<p>Total Rooms: <b><?= $totalRooms ?></b></p>
+ <table>
+        <tr>
+            <th>Report Type</th>
+            <th>Count</th>
+        </tr>
 
-<p>Available Rooms: <b><?= $availableRooms ?></b></p>
+        <tr>
+            <td>Total Bookings</td>
+            <td><?= $totalBookings ?></td>
+        </tr>
 
-<p>Total Bookings: <b><?= $totalBookings ?></b></p>
+        <tr>
+            <td>Confirmed Bookings</td>
+            <td><?= $totalConfirmed ?></td>
+        </tr>
 
-<p>Pending Bookings: <b><?= $pendingBookings ?></b></p>
+        <tr>
+            <td>Pending Bookings</td>
+            <td><?= $totalPending ?></td>
+        </tr>
+
+        <tr>
+            <td>Cancelled Bookings</td>
+            <td><?= $totalCancelled ?></td>
+        </tr>
+    </table>
 
 </div>
-
 
 <div class="box">
-<h3>Manage Rooms</h3>
+<h3>Room Overview</h3>
 
-<table>
-<tr>
-<th>ID</th>
-<th>Type</th>
-<th>Price</th>
-<th>Capacity</th>
-<th>Action</th>
-</tr>
-
-<?php
-$res = $conn->query("SELECT * FROM rooms");
-
-while($row=$res->fetch_assoc()){
-    echo "<tr>
-        <td>{$row['room_id']}</td>
-        <td>{$row['room_type']}</td>
-        <td>₱{$row['price']}</td>
-        <td>{$row['capacity']}</td>
-        <td>
-            <a href='admin_dashboard.php?edit={$row['room_id']}'><button>Edit</button></a>
-            <a href='admin_dashboard.php?delete_room={$row['room_id']}'><button>Delete</button></a>
-        </td>
-    </tr>";
-}
-?>
-</table>
+		<table>
+		<tr>
+			<th>Room Type</th>
+			<th>Price</th>
+			<th>Capacity</th>
+			<th>Available</th>
+		</tr>
 
 <?php
 
-if(isset($_GET['delete_room'])){
+		$query = "
+		SELECT 
+			r.room_type,
+			MIN(r.price) AS price,
+			MIN(r.capacity) AS capacity,
+			COUNT(r.room_id) AS total_rooms,
 
-    $id = (int) $_GET['delete_room'];
+			(
+				COUNT(r.room_id) - 
+				COALESCE((
+					SELECT COUNT(*)
+					FROM bookings b
+					JOIN rooms r2 ON b.room_id = r2.room_id
+					WHERE r2.room_type = r.room_type
+					AND b.booking_status IN ('Confirmed', 'Checked In')
+				), 0)
+			) AS available_rooms
 
-    $check = $conn->query("SELECT 1 FROM bookings WHERE room_id=$id LIMIT 1");
+		FROM rooms r
+		GROUP BY r.room_type
+		";
 
-    if($check->num_rows > 0){
-        echo "<script>
-        alert('Cannot delete room. It is currently used in bookings.');
-        window.location='admin_dashboard.php';
-        </script>";
-        exit();
-    }
+		$res = $conn->query($query);
 
-    $conn->query("DELETE FROM rooms WHERE room_id=$id");
+		while($row = $res->fetch_assoc()){
 
-    echo "<script>
-    alert('Room deleted successfully.');
-    window.location='admin_dashboard.php';
-    </script>";
-    exit();
-}
-?>
+		$availability = ($row['available_rooms'] > 0)
+			? $row['available_rooms']
+			: "Fully Booked";
 
-<?php
+		echo "
+		<tr>
+			<td>{$row['room_type']}</td>
+			<td>₱{$row['price']}</td>
+			<td>{$row['capacity']}</td>
+			<td>{$availability}</td>
+		</tr>";
+		}
+		?>
 
-$edit = null;
-
-if(isset($_GET['edit'])){
-    $id = (int) $_GET['edit'];
-    $edit = $conn->query("SELECT * FROM rooms WHERE room_id=$id")->fetch_assoc();
-}
-?>
-
-<?php if($edit){ ?>
-<div class="box" id="edit">
-<h3>Edit Room Price</h3>
-
-<form method="POST">
-
-    <input type="hidden" name="room_id" value="<?= $edit['room_id'] ?>">
-
-    <label>Room Type</label>
-    <input type="text" value="<?= $edit['room_type'] ?>" disabled>
-
-    <label>Price</label>
-    <input type="number" name="price" value="<?= $edit['price'] ?>" required>
-
-    <button type="submit" name="update_price">
-        Save Changes
-    </button>
-
-    <a href="admin_dashboard.php">
-        <button type="button">Cancel</button>
-    </a>
-
-</form>
-</div>
-<?php } ?>
-
-<?php
-if(isset($_POST['update_price'])){
-
-    $id = (int) $_POST['room_id'];
-    $price = $_POST['price'];
-
-    $conn->query("
-        UPDATE rooms 
-        SET price='$price'
-        WHERE room_id=$id
-    ");
-
-    echo "<script>
-        alert('Price updated successfully');
-        window.location='admin_dashboard.php';
-    </script>";
-    exit();
-}
-?>
-
-</div>
-
-
-<div class="box">
-<h3>Bookings</h3>
-
-<table>
-<tr>
-<th>ID</th>
-<th>User</th>
-<th>Room</th>
-<th>Status</th>
-</tr>
-
-<?php
-$res = $conn->query("SELECT * FROM bookings");
-
-while($row=$res->fetch_assoc()){
-    echo "<tr>
-        <td>{$row['booking_id']}</td>
-        <td>{$row['user_id']}</td>
-        <td>{$row['room_id']}</td>
-        <td>{$row['booking_status']}</td>
-    </tr>";
-}
-?>
-</table>
-</div>
-
+		</table>
+	</div>	
 
 <div class="box">
 <h3>Void Requests</h3>
@@ -352,6 +308,7 @@ echo "
 </table>
 
 <?php
+
 if(isset($_GET['approve'])){
 
     $id = intval($_GET['approve']);
@@ -359,50 +316,50 @@ if(isset($_GET['approve'])){
     $void = $conn->query("
         SELECT booking_id
         FROM void_booking
-        WHERE Void_ID=$id
-    ")->fetch_assoc();
+        WHERE Void_ID = $id
+    ");
 
-    if(!$void){
-        die("Void request not found.");
+    if(!$void || $void->num_rows == 0){
+        die("ERROR: Void request not found or invalid ID");
     }
 
-    $booking_id = $void['booking_id'];
+    $void = $void->fetch_assoc();
+    $booking_id = (int)$void['booking_id'];
 
-    $booking = $conn->query("
-        SELECT room_id
-        FROM bookings
-        WHERE booking_id=$booking_id
-    ")->fetch_assoc();
-
-    if($booking){
+    if($booking_id <= 0){
+        die("ERROR: Invalid booking ID inside void request");
+    }
 
     $conn->query("
         UPDATE bookings
         SET booking_status='Cancelled'
         WHERE booking_id=$booking_id
+    ");
+	
+	$conn->query("
+		UPDATE rooms
+		SET room_status='Available'
+		WHERE room_id=(
+			SELECT room_id
+			FROM bookings
+			WHERE booking_id=$booking_id
+		)
 	");
 	
-	$check = $conn->query("
-		SELECT status 
-		FROM void_booking 
-		WHERE Void_ID=$id
+	$username = $_SESSION['user'];
+
+	$admin = $conn->query("
+		SELECT User_ID
+		FROM users
+		WHERE username='$username'
 	")->fetch_assoc();
 
-if($check['status'] == 'Approved'){
-    header("Location: admin_dashboard.php");
-    exit();
-}
-
-    $conn->query("
-		UPDATE rooms
-		SET available = LEAST(available + 1, 5)
-		WHERE room_id = {$booking['room_id']}
-    ");
-    }
+	$admin_id = $admin['User_ID'];
 
     $conn->query("
         UPDATE void_booking
-        SET status='Approved'
+        SET status='Approved',
+			processedby_admin=$admin_id
         WHERE Void_ID=$id
     ");
 
@@ -412,12 +369,17 @@ if($check['status'] == 'Approved'){
     </script>";
     exit();
 }
-
 if(isset($_GET['reject'])){
     $id = $_GET['reject'];
-    $conn->query("UPDATE void_booking SET status='Rejected' WHERE Void_ID=$id");
+   	$conn->query("
+		UPDATE void_booking
+		SET status='Rejected',
+			processedby_admin=$admin_id
+		WHERE Void_ID=$id
+	");
     echo "<script>window.location='admin_dashboard.php';</script>";
 }
+
 
 if(isset($_GET['remove'])){
 
@@ -439,6 +401,129 @@ if(isset($_GET['remove'])){
 ?>
 
 </div>
+
+<div class="box">
+<h3>Bookings</h3>
+
+<table>
+<tr>
+<th>Booking ID</th>
+<th>Guest ID</th>
+<th>Room</th>
+<th>Status</th>
+</tr>
+
+<?php
+$res = $conn->query("SELECT * FROM bookings");
+
+while($row=$res->fetch_assoc()){
+    echo "<tr>
+        <td>{$row['booking_id']}</td>
+        <td>{$row['Guest_ID']}</td>
+        <td>{$row['room_id']}</td>
+        <td>{$row['booking_status']}</td>
+		
+    </tr>";
+	
+}
+?>
+</table>
+</div>
+
+
+<div class="box">
+<h3>Manage Rooms</h3>
+
+<?php
+$types = $conn->query("
+    SELECT DISTINCT room_type 
+    FROM rooms
+    ORDER BY 
+        CASE room_type
+            WHEN 'Standard Single' THEN 1
+            WHEN 'Standard Double' THEN 2
+            WHEN 'Deluxe Room' THEN 3
+            WHEN 'Family Room' THEN 4
+            WHEN 'Suite' THEN 5
+        END
+");
+?>
+
+<?php while($type = $types->fetch_assoc()) { 
+    $roomType = $type['room_type'];
+?>
+    
+<div style="margin-bottom:15px; background:#1e1e1e; padding:10px; border-radius:10px;">
+
+    <details>
+        <summary style="cursor:pointer; font-weight:bold;">
+            <?= $roomType ?>
+        </summary>
+
+        <table style="margin-top:10px;">
+            <tr>
+                <th>Room No.</th>
+                <th>Price</th>
+                <th>Capacity</th>
+				<th>Status</th>
+                <th>Action</th>
+            </tr>
+
+            <?php
+            $rooms = $conn->query("
+                SELECT * FROM rooms 
+                WHERE room_type='$roomType'
+                ORDER BY room_number ASC
+            ");
+			
+				while($row = $rooms->fetch_assoc()){ ?>
+				<tr>	
+					<td><?= $row['room_number'] ?></td>
+					<td>₱<?= $row['price'] ?></td>
+					<td><?= $row['capacity'] ?></td>
+					<td><?= $row['room_status'] ?></td>
+						<td>
+						
+						<div class="action-btn">
+							<a href='admin_dashboard.php?edit=<?= $row['room_id'] ?>'>
+								<button>Edit</button>
+							</a>
+					
+						<?php if($row['room_status'] != 'Occupied'){ ?>
+
+							<?php if($row['room_status'] == 'Under Maintenance'){ ?>
+
+								<a href='admin_dashboard.php?cancel_maintenance=<?= $row['room_id'] ?>'>
+									<button>Cancel</button>
+								</a>
+
+							<?php } else { ?>
+
+								<a href='admin_dashboard.php?maintenance=<?= $row['room_id'] ?>'>
+									<button>Maintenance</button>
+								</a>
+
+							<?php } ?>
+
+						<?php } else { ?>
+
+							<button disabled style="background:#555; opacity:0.6;">Occupied</button>
+
+						<?php } ?>
+							
+					</td>			
+				</tr>
+			<?php } ?>
+        </table>
+
+    </details>
+
+</div>
+
+<?php } ?>
+
+</div>
+
 
 
 <div class="box">
@@ -488,7 +573,7 @@ if(isset($_POST['add_staff'])){
             '$birthdate',
             '$username',
             '$password',
-            'receptionist'z
+            'receptionist'
         )
     ");
 		$conn->query("
@@ -504,6 +589,45 @@ if(isset($_POST['add_staff'])){
     </script>";
 }
 ?>
+</div>
+
+<div class="box">
+<h3>Registration Records</h3>
+
+<table>
+<tr>
+    <th>User ID</th>
+    <th>Username</th>
+    <th>Password</th>
+    <th>Role</th>
+    <th>Date Registered</th>
+</tr>
+
+<?php
+$res = $conn->query("
+    SELECT User_ID, username, password, role, created_at
+    FROM users
+    WHERE role IN ('receptionist', 'guest')
+    ORDER BY 
+        CASE 
+            WHEN role = 'receptionist' THEN 1
+            WHEN role = 'guest' THEN 2
+        END,
+        created_at DESC
+");
+
+while($row = $res->fetch_assoc()){
+    echo "<tr>
+        <td>{$row['User_ID']}</td>
+        <td>{$row['username']}</td>
+        <td>********</td>
+        <td>{$row['role']}</td>
+        <td>{$row['created_at']}</td>
+    </tr>";
+}
+?>
+
+</table>
 </div>
 
 </div>

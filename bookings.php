@@ -13,7 +13,12 @@ include "db.php";
 		font-family:Arial;
 		background:#121212;
 		color:white;
-		padding:10px;
+		padding:20px;
+		background-image: url('hotel-bg.jpg');
+		background-size: cover;
+		background-position: center;
+		background-repeat: no-repeat;
+		background-attachment: fixed;
 	}
 	
 	.form-container{
@@ -57,14 +62,15 @@ include "db.php";
 		margin-bottom:20px;
 	}
 
-button{
-    padding:8px 12px;
-    background:#2d89ef;
-    color:white;
-    border:none;
-    border-radius:5px;
-	
-}
+	button{
+		padding:8px 12px;
+		background:#2d89ef;
+		color:white;
+		border:none;
+		border-radius:5px;
+		cursor:pointer;
+		
+	}
 	
 	.section-header{
 		background:#1e1e1e;
@@ -82,7 +88,7 @@ button{
 
 </head>
 
-<body style="margin:0; font-family:Arial; background:#121212; color:white;">
+<body>
 
 <div class="section-header">
     <h2>Bookings</h2>
@@ -98,30 +104,56 @@ button{
 
 <form method="POST">
 
-    <label>Room ID</label>
+    <label>Room Type</label>
 
-	<select name="room_id" id="room_id" required onchange="getPrice()">
+	<select name="room_type" id="room_type" required onchange="getPrice()">
+		<option value="" disabled selected>Select Room Type</option>
 
-    <option value="" disabled selected>Select Room</option>
+		<?php
+		$order = "
+			CASE room_type
+				WHEN 'Standard Single' THEN 1
+				WHEN 'Standard Double' THEN 2
+				WHEN 'Deluxe Room' THEN 3
+				WHEN 'Family Room' THEN 4
+				WHEN 'Suite' THEN 5
+				ELSE 6
+			END
+		";
+		
+		$room_types = $conn->query("
+			SELECT
+				r.room_type,
 
-    <?php
-    $rooms = $conn->query("
-        SELECT room_id, room_type, available
-        FROM rooms
-        WHERE available > 0
-    ");
+				(
+					COUNT(r.room_id)
+					-
+					COALESCE((
+						SELECT COUNT(*)
+						FROM bookings b
+						JOIN rooms r2 ON b.room_id = r2.room_id
+						WHERE r2.room_type = r.room_type
+						AND b.booking_status IN ('Confirmed','Checked In')
+					),0)
+				) AS available
 
-    while($room = $rooms->fetch_assoc()){
-        echo "
-        <<option value='{$room['room_id']}'>
-		Room {$room['room_id']} - {$room['room_type']}
-		({$room['available']} Available)
-		</option>";
-    }
-    ?>
+			FROM rooms r
+			GROUP BY r.room_type
+			HAVING available > 0
+			ORDER BY $order
+		");
+
+		while($room_type = $room_types->fetch_assoc()){
+			echo "
+			<option value='{$room_type['room_type']}'>
+				{$room_type['room_type']} ({$room_type['available']} Available)
+			</option>";
+		}
+		?>
+	</select>
 
     <label>Room Price</label>
-    <input type="text" id="room_price" readonly
+    <input type="text" id="room_price" readonly>
 
     <label>Number of Guests</label>
     <input type="number" name="num_guests" min="1" required>
@@ -140,7 +172,7 @@ button{
 		<option>Cash</option>
     </select>
 
-    <label>Amount Paid</label>
+    <label>Amount</label>
     <input type="number" name="amount_paid" required>
 
     <button type="submit" name="book">Book Now</button>
@@ -150,8 +182,28 @@ button{
 <?php
 if(isset($_POST['book'])){
 
-    $user = $_SESSION['user'];
-    $room = $_POST['room_id'];
+	$user = $_SESSION['user'];
+
+	$user_id = $conn->query("
+		SELECT User_ID 
+		FROM users 
+		WHERE username='$user'
+	")->fetch_assoc()['User_ID'];
+	
+	$guest = $conn->query("
+		SELECT guest_id 
+		FROM guest 
+		WHERE User_ID = $user_id
+		LIMIT 1
+	")->fetch_assoc();
+
+	if(!$guest){
+		die("ERROR: Guest record not found for this user");
+	}
+
+	$guest_id = $guest['guest_id'];
+	
+	$room_type = $_POST['room_type'];
     $in = $_POST['in'];
     $out = $_POST['out'];
 	$start = new DateTime($in);
@@ -170,45 +222,22 @@ if(isset($_POST['book'])){
     $payment_method = $_POST['payment_method'];
     $amount_paid = $_POST['amount_paid'];
 	
-		$checkRoom = $conn->query("
-		SELECT available
-		FROM rooms
-		WHERE room_id='$room'
+		$roomData = $conn->query("
+			SELECT room_id, price
+			FROM rooms
+			WHERE room_type='$room_type'
+			LIMIT 1
+		")->fetch_assoc();
+
+		$room_id = $roomData['room_id'];
+		$price = $roomData['price'];
+
+	$conn->query("
+		INSERT INTO bookings
+		(user_id, guest_id, room_id, check_in_date, check_out_date, num_guests, total_price, booking_status)
+		VALUES
+		($user_id, $guest_id, $room_id, '$in', '$out', '$num_guests', '$price', 'Pending')
 	");
-
-	$roomInfo = $checkRoom->fetch_assoc();
-
-	if($roomInfo['available'] <= 0){
-
-		echo "<script>
-		alert('This room is fully booked.');
-		window.location='bookings.php';
-		</script>";
-
-		exit();
-	}
-
-    // GET ROOM PRICE FIRST
-    $res = $conn->query("SELECT price FROM rooms WHERE room_id='$room'");
-    $roomData = $res->fetch_assoc();
-    $price = $roomData['price'];
-
-    $conn->query("
-        INSERT INTO bookings
-        (user_id, room_id, check_in_date, check_out_date, num_guests, total_price, booking_status)
-        VALUES
-        (
-            (SELECT User_ID FROM users WHERE username='$user'),
-            '$room',
-            '$in',
-            '$out',
-            '$num_guests',
-            '$price',
-            'Pending'
-
-        )	
-		
-    ");
 	$booking_id = $conn->insert_id;
 
 	$conn->query("
@@ -227,14 +256,14 @@ if(isset($_POST['book'])){
 
 <script>
 function getPrice(){
-    let room_id = document.getElementById("room_id").value;
+    let room_type = document.getElementById("room_type").value;
 
-    if(room_id === ""){
+    if(room_type === ""){
         document.getElementById("room_price").value = "";
         return;
     }
 
-    fetch("get_price.php?room_id=" + room_id)
+    fetch("get_price.php?room_type=" + room_type)
     .then(res => res.text())
     .then(data => {
         document.getElementById("room_price").value = data;

@@ -29,6 +29,11 @@ body{
     background:#121212;
     color:white;
     padding:20px;
+	background-image: url('hotel-bg.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
 }
 
 .box{

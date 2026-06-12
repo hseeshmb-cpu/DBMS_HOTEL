@@ -23,6 +23,11 @@ body{
     color:white;
     margin:0;
     padding:30px;
+	background-image: url('hotel-bg.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
 }
 
 .header{
@@ -58,8 +63,8 @@ button:hover{
 <body>
 
 <div class="header">
-    <h2>Hotel Dashboard</h2>
-    <p>Welcome <?php echo $_SESSION['user']; ?></p>
+    <h2 style="font-family:Georgia, serif">COLOVE HOTEL</h2>
+    <p>Welcome <?php echo $_SESSION['user'];?></p>
 </div>
 
 <div class="container">
@@ -67,7 +72,7 @@ button:hover{
     <a href="rooms.php"><button>Rooms</button></a>
     <a href="bookings.php"><button>Bookings</button></a>
 	<a href="booking_details.php"><button>Booking Details</button></a>
-    <a href="void_requests.php"><button>Void Requests</button></a>
+    <a href="void_requests.php"><button>Booking Cancelation</button></a>
 
     <?php if($role == 'admin'){ ?>
         <a href="reception_staff.php"><button>Reception Staff</button></a>
