@@ -222,21 +222,69 @@ if(isset($_POST['book'])){
     $payment_method = $_POST['payment_method'];
     $amount_paid = $_POST['amount_paid'];
 	
+	$roomData = $conn->query("
+		SELECT r.room_id, r.room_number, r.price
+		FROM rooms r
+		WHERE r.room_type='$room_type'
+		AND r.room_id NOT IN (
+			SELECT room_id
+			FROM bookings
+			WHERE booking_status IN ('Pending','Confirmed','Checked In')
+		)
+		ORDER BY r.room_id ASC
+		LIMIT 1
+	")->fetch_assoc();
+	
 		$roomData = $conn->query("
-			SELECT room_id, price
-			FROM rooms
-			WHERE room_type='$room_type'
-			LIMIT 1
-		")->fetch_assoc();
+		SELECT r.room_id, r.room_number, r.price
+		FROM rooms r
+		WHERE r.room_type='$room_type'
+		AND r.room_id NOT IN (
+			SELECT room_id
+			FROM bookings
+			WHERE booking_status IN ('Pending','Confirmed','Checked In')
+		)
+		ORDER BY r.room_id ASC
+		LIMIT 1
+	")->fetch_assoc();
 
+	if(!$roomData){
+		echo "<script>
+			alert('Booking limit reached. No more available rooms for this room type.');
+			window.location='bookings.php';
+		</script>";
+		exit();
+	}
+	
 		$room_id = $roomData['room_id'];
+		$room_number = $roomData['room_number'];
 		$price = $roomData['price'];
 
 	$conn->query("
 		INSERT INTO bookings
-		(user_id, guest_id, room_id, check_in_date, check_out_date, num_guests, total_price, booking_status)
+		(
+			user_id,
+			guest_id,
+			room_id,
+			room_number,
+			check_in_date,
+			check_out_date,
+			num_guests,
+			total_price,
+			booking_status
+		)
 		VALUES
-		($user_id, $guest_id, $room_id, '$in', '$out', '$num_guests', '$price', 'Pending')
+		(
+			$user_id,
+			$guest_id,
+			$room_id,
+			'$room_number',
+			'$in',
+			'$out',
+			'$num_guests',
+			'$price',
+			'Pending'
+		)
 	");
 	$booking_id = $conn->insert_id;
 

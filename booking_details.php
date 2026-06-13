@@ -7,15 +7,19 @@ if(!isset($_SESSION['user'])){
     exit();
 }
 
-$username = $_SESSION['user'];
+$user = $_SESSION['user'];
 
-$user = $conn->query("
-    SELECT User_ID
-    FROM users
-    WHERE username='$username'
-")->fetch_assoc();
+$user_id = $conn->query("
+    SELECT User_ID 
+    FROM users 
+    WHERE username='$user'
+")->fetch_assoc()['User_ID'];
 
-$user_id = $user['User_ID'];
+$guest_id = $conn->query("
+    SELECT guest_id 
+    FROM guest 
+    WHERE User_ID = $user_id
+")->fetch_assoc()['guest_id'];
 ?>
 
 <!DOCTYPE html>

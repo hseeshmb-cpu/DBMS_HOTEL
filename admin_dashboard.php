@@ -28,6 +28,21 @@ if(isset($_GET['maintenance'])){
     exit();
 }
 
+if(isset($_POST['update_price'])){
+
+    $room_id = intval($_POST['room_id']);
+    $price = $_POST['price'];
+
+    $conn->query("
+        UPDATE rooms
+        SET price='$price'
+        WHERE room_id=$room_id
+    ");
+
+    header("Location: admin_dashboard.php");
+    exit();
+}
+
 if(isset($_GET['cancel_maintenance'])){
 
     $id = intval($_GET['cancel_maintenance']);
@@ -76,6 +91,10 @@ body{
     display:grid;
     grid-template-columns:1fr 1fr;
     gap:20px;
+}
+
+.booknreg-box{
+    grid-column:1 / span 2;
 }
 
 .box{
@@ -259,10 +278,105 @@ $totalBookings = $conn->query("
 		?>
 
 		</table>
-	</div>	
+	</div>
+
+<div class="box booknreg-box">
+<h3>Bookings</h3>
+
+<table>
+<tr>
+<th>Booking ID</th>
+<th>Guest ID</th>
+<th>No. Guests</th>
+<th>Check In</th>
+<th>Check Out</th>
+<th>Room ID</th>
+<th>Room No.</th>
+<th>Processed By</th>
+<th>Status</th>
+</tr>
+
+<?php
+$res = $conn->query("
+    SELECT
+        b.*,
+        rs.first_name,
+        rs.last_name
+    FROM bookings b
+    LEFT JOIN reception_staff rs
+        ON b.processed_by = rs.ReceptionStaff_ID
+");
+
+while($row = $res->fetch_assoc()){
+
+    $staffName = ($row['first_name'])
+        ? $row['first_name'] . " " . $row['last_name']
+        : "N/A";
+		
+    echo "<tr>
+        <td>{$row['booking_id']}</td>
+        <td>{$row['Guest_ID']}</td>
+        <td>{$row['num_guests']}</td>
+        <td>{$row['check_in_date']}</td>
+        <td>{$row['check_out_date']}</td>
+        <td>{$row['room_id']}</td>
+        <td>{$row['room_number']}</td>
+        <td>{$staffName}</td>
+        <td>{$row['booking_status']}</td>
+    </tr>";
+}
+?>
+</table>
+</div>
 
 <div class="box">
-<h3>Void Requests</h3>
+    <h3>Payment Records</h3>
+    <table>
+        <tr>
+			<th>Payment ID</th>
+            <th>Booking ID</th>
+            <th>Room ID</th>
+            <th>Amount</th>
+			<th>Processed By</th>
+            <th>Status</th>
+        </tr>
+       <?php
+      $res = $conn->query("
+			SELECT
+				b.booking_id,
+				b.room_id,
+				p.Payment_ID,
+				p.amount_paid,
+				p.payment_status,
+				rs.first_name,
+				rs.last_name
+			FROM bookings b
+			LEFT JOIN payment p
+				ON b.booking_id = p.Booking_ID
+			LEFT JOIN reception_staff rs
+				ON p.ReceptionStaff_ID = rs.ReceptionStaff_ID
+		");
+        while($row = $res->fetch_assoc()){
+		$status = strtolower(trim($row['payment_status']));
+		$confirmed = ($row['payment_status'] == 'Confirmed');
+		$staffName = ($row['first_name'])
+		? $row['first_name'] . " " . $row['last_name']
+			: "N/A";
+		echo "<tr>
+			<td>{$row['Payment_ID']}</td>
+			<td>{$row['booking_id']}</td>
+			<td>{$row['room_id']}</td>
+			<td>₱{$row['amount_paid']}</td>
+			<td>{$staffName}</td>
+			<td>{$row['payment_status']}</td>
+		</tr>";
+		}
+        ?>		
+    </table>
+</div>	
+
+<div class="box">
+<h3>Cancelation Requests</h3>
 
 <table>
 <tr>
@@ -370,16 +484,32 @@ if(isset($_GET['approve'])){
     exit();
 }
 if(isset($_GET['reject'])){
-    $id = $_GET['reject'];
-   	$conn->query("
-		UPDATE void_booking
-		SET status='Rejected',
-			processedby_admin=$admin_id
-		WHERE Void_ID=$id
-	");
-    echo "<script>window.location='admin_dashboard.php';</script>";
-}
 
+    $id = intval($_GET['reject']);
+
+    $username = $_SESSION['user'];
+
+    $admin = $conn->query("
+        SELECT User_ID
+        FROM users
+        WHERE username='$username'
+    ")->fetch_assoc();
+
+    $admin_id = $admin['User_ID'];
+
+    $conn->query("
+        UPDATE void_booking
+        SET status='Rejected',
+            processedby_admin=$admin_id
+        WHERE Void_ID=$id
+    ");
+
+    echo "<script>
+        alert('Void request rejected.');
+        window.location='admin_dashboard.php';
+    </script>";
+    exit();
+}
 
 if(isset($_GET['remove'])){
 
@@ -400,34 +530,6 @@ if(isset($_GET['remove'])){
 }
 ?>
 
-</div>
-
-<div class="box">
-<h3>Bookings</h3>
-
-<table>
-<tr>
-<th>Booking ID</th>
-<th>Guest ID</th>
-<th>Room</th>
-<th>Status</th>
-</tr>
-
-<?php
-$res = $conn->query("SELECT * FROM bookings");
-
-while($row=$res->fetch_assoc()){
-    echo "<tr>
-        <td>{$row['booking_id']}</td>
-        <td>{$row['Guest_ID']}</td>
-        <td>{$row['room_id']}</td>
-        <td>{$row['booking_status']}</td>
-		
-    </tr>";
-	
-}
-?>
-</table>
 </div>
 
 
@@ -451,7 +553,10 @@ $types = $conn->query("
 
 <?php while($type = $types->fetch_assoc()) { 
     $roomType = $type['room_type'];
+	
 ?>
+
+<?php $edit_id = isset($_GET['edit']) ? (int)$_GET['edit'] : 0; ?>
     
 <div style="margin-bottom:15px; background:#1e1e1e; padding:10px; border-radius:10px;">
 
@@ -477,7 +582,37 @@ $types = $conn->query("
             ");
 			
 				while($row = $rooms->fetch_assoc()){ ?>
-				<tr>	
+				<tr>
+					<?php if(isset($_GET['edit']) && $_GET['edit'] == $row['room_id']) { ?>
+					<tr>
+						<td colspan="5">
+							<div style="background:#2a2a2a; padding:10px; border-radius:8px;" id="editBox">
+
+								<form method="POST">
+
+									<input type="hidden" name="room_id" value="<?= $row['room_id'] ?>">
+
+									<label>Room Price:</label><br>
+
+									<input type="number" name="price" value="<?= $row['price'] ?>" required>
+
+									<button type="submit" name="update_price">
+										Save Price
+									</button>
+
+									<a href="admin_dashboard.php">
+										<button type="button" style="background:2a2a2a;">
+											Cancel
+										</button>
+									</a>
+
+								</form>
+
+							</div>
+						</td>
+					</tr>
+					<?php } ?>
+				
 					<td><?= $row['room_number'] ?></td>
 					<td>₱<?= $row['price'] ?></td>
 					<td><?= $row['capacity'] ?></td>
@@ -485,7 +620,7 @@ $types = $conn->query("
 						<td>
 						
 						<div class="action-btn">
-							<a href='admin_dashboard.php?edit=<?= $row['room_id'] ?>'>
+							<a href='admin_dashboard.php?edit=<?= $row['room_id'] ?>#editBox'>
 								<button>Edit</button>
 							</a>
 					
@@ -591,7 +726,7 @@ if(isset($_POST['add_staff'])){
 ?>
 </div>
 
-<div class="box">
+<div class="box booknreg-box">
 <h3>Registration Records</h3>
 
 <table>

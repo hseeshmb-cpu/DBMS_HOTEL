@@ -24,7 +24,8 @@ if(isset($_GET['pay'])){
 
     $conn->query("
         UPDATE payment
-        SET payment_status='Paid'
+        SET payment_status='Paid',
+            ReceptionStaff_ID=$receptionist_id
         WHERE Booking_ID=$id
     ");
 
@@ -80,6 +81,45 @@ if(isset($_GET['confirm'])){
 			SET Guest_ID = $Guest_ID 
 			WHERE booking_id = $booking_id
 		");
+		
+		$room_id = $booking['room_id'];
+		$roomTypeQuery = $conn->query("
+			SELECT room_type 
+			FROM rooms 
+			WHERE room_id=$room_id
+		")->fetch_assoc();
+
+		$room_type = $roomTypeQuery['room_type'];
+		$others = $conn->query("
+			SELECT booking_id
+			FROM bookings
+			WHERE room_id=$room_id
+			AND booking_status='Pending'
+		");
+		
+		while($other = $others->fetch_assoc()){
+			$bid = $other['booking_id'];
+			$newRoom = $conn->query("
+				SELECT room_id
+				FROM rooms
+				WHERE room_type='$room_type'
+				AND room_id NOT IN (
+					SELECT room_id
+					FROM bookings
+					WHERE booking_status IN ('Confirmed','Checked In')
+				)
+				LIMIT 1
+			")->fetch_assoc();
+
+			if($newRoom){
+
+				$conn->query("
+					UPDATE bookings
+					SET room_id={$newRoom['room_id']}
+					WHERE booking_id=$bid
+				");
+			}
+		}	
 		if(!$guest){
 			$conn->query("
 				INSERT INTO guest (User_ID, first_name, last_name, phone_number, birthdate, email)
@@ -150,7 +190,8 @@ if(isset($_GET['checkin'])){
 	$conn->query("
 		UPDATE rooms
 		SET room_status='Occupied'
-		WHERE room_id=(	
+		WHERE room_id=(
+			SELECT room_id
 			FROM bookings
 			WHERE booking_id=$id
 		)
@@ -169,14 +210,20 @@ if(isset($_GET['checkout'])){
     $id = intval($_GET['checkout']);
 
     $conn->query("
-		UPDATE rooms
-		SET room_status='Available'
-		WHERE room_id=(
-			SELECT room_id
-			FROM bookings
-			WHERE booking_id=$id
-		)
-	");
+        UPDATE bookings
+        SET booking_status='Checked Out'
+        WHERE booking_id=$id
+    ");
+
+    $conn->query("
+        UPDATE rooms
+        SET room_status='Available'
+        WHERE room_id=(
+            SELECT room_id
+            FROM bookings
+            WHERE booking_id=$id
+        )
+    ");
 
     echo "<script>
         alert('Guest checked out successfully');
@@ -317,10 +364,14 @@ button:hover {
     <table>
     <tr>
         <th>Booking ID</th>
-        <th>Room</th>
+        <th>Room No.</th>
         <th>User ID</th>
         <th>Guest ID</th>
+		<th>No. Guests</th>
+		<th>Check In</th>
+		<th>Check Out</th>
         <th>Status</th>
+		<th>Processed By</th>
         <th>Payment ID</th>
         <th>Payment</th>
         <th>Payment Status</th>
@@ -329,25 +380,39 @@ button:hover {
 
 			<?php
 			$res = $conn->query("
-				SELECT 
-					b.*,
-					g.Guest_ID,
-					p.Payment_ID,
-					p.amount_paid,
-					p.payment_status
-				FROM bookings b
-				LEFT JOIN guest g ON g.User_ID = b.user_id
-				LEFT JOIN payment p ON b.booking_id = p.Booking_ID
+			SELECT
+				b.*,
+				r.room_number,
+				g.Guest_ID,
+				p.Payment_ID,
+				p.amount_paid,
+				p.payment_status,
+				rs.ReceptionStaff_ID,
+				rs.first_name,
+				rs.last_name
+			FROM bookings b
+			LEFT JOIN rooms r
+				ON b.room_id = r.room_id
+			LEFT JOIN guest g
+				ON g.User_ID = b.user_id
+			LEFT JOIN payment p
+				ON b.booking_id = p.Booking_ID
+			LEFT JOIN reception_staff rs
+				ON b.processed_by = rs.ReceptionStaff_ID
 			");
 
 		 while($row = $res->fetch_assoc()){ ?>
 
 		<tr>
 			<td><?= $row['booking_id'] ?></td>
-			<td><?= $row['room_id'] ?></td>
+			<td><?= $row['room_number'] ?></td>
 			<td><?= $row['user_id'] ?></td>
 			<td><?= $row['Guest_ID'] ?? 'N/A' ?></td>
+			<td><?= $row['num_guests'] ?></td>
+			<td><?= $row['check_in_date'] ?></td>
+			<td><?= $row['check_out_date'] ?></td>
 			<td><?= $row['booking_status'] ?? 'Pending' ?></td>
+			<td><?= $row['first_name'] ? $row['first_name']." ".$row['last_name'] : 'N/A' ?></td>
 			<td><?= $row['Payment_ID'] ?? 'N/A' ?></td>
 			<td><?= $row['amount_paid'] ?? 0 ?></td>
 			<td><?= $row['payment_status'] ?? 'Unpaid' ?></td>
@@ -410,34 +475,41 @@ button:hover {
             <th>Booking ID</th>
             <th>Room ID</th>
             <th>Amount</th>
+			<th>Processed By</th>
             <th>Status</th>
         </tr>
        <?php
-       $res = $conn->query("
-			SELECT 
+      $res = $conn->query("
+			SELECT
 				b.booking_id,
 				b.room_id,
-				b.user_id,
-				b.guest_id,
-				b.booking_status,
 				p.Payment_ID,
 				p.amount_paid,
-				p.payment_status
+				p.payment_status,
+				rs.first_name,
+				rs.last_name
 			FROM bookings b
-			LEFT JOIN payment p ON b.booking_id = p.Booking_ID
+			LEFT JOIN payment p
+				ON b.booking_id = p.Booking_ID
+			LEFT JOIN reception_staff rs
+				ON p.ReceptionStaff_ID = rs.ReceptionStaff_ID
 		");
         while($row = $res->fetch_assoc()){
 		$status = strtolower(trim($row['payment_status']));
 		$confirmed = ($row['payment_status'] == 'Confirmed');
+		$staffName = ($row['first_name'])
+		? $row['first_name'] . " " . $row['last_name']
+			: "N/A";
 		echo "<tr>
 			<td>{$row['Payment_ID']}</td>
 			<td>{$row['booking_id']}</td>
 			<td>{$row['room_id']}</td>
 			<td>₱{$row['amount_paid']}</td>
+			<td>{$staffName}</td>
 			<td>{$row['payment_status']}</td>
 		</tr>";
-	}
-        ?>
+		}
+        ?>		
     </table>
 </div>
 
@@ -493,6 +565,7 @@ button:hover {
 		</tr>";
 		}
         ?>
+		
     </table>
 </div>
 
